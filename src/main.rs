@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{PathBuf};
 use ap::parser::{Parser, Policy};
@@ -9,14 +10,49 @@ fn main() -> std::io::Result<()> {
     let options = Options::parse(&env_args);
 
     let files = read_rom_files_list(&options);
-    for file in files {
-        println!("{}", file.display())
+
+    // We need to calculate the slices which we'll use to make the directories. A slice has
+    // collection of rom files, along with first and last char of the slice. It's possible that
+    // a slice contains a single char. It's ok to go over the max number of files per slice.
+    // That just means the slice is too small.
+    //
+    // Before creating the directories we probably want to normalize the first char of the
+    // filenames to [a-z-A-Z] and any other char we can fold into a special char. That again,
+    // can over the max limit.
+    //
+    // We can first group the rom files per `start_with` and this will give us a count
+    // of how many rom files we have per char. It's ok if we go over the max limit for
+    // a single char.
+    //
+    // TODO: I take going over the max number back. We probably wnat to turn the slice
+    // TODO: into a directory like part-01-A-B, or part-05-S-S, then part-06-S-T
+    // TODO: since, letters like S can have hundreds of titles
+    let group_by_start_with_normalized: HashMap<char, Vec<RomFile>> = files
+        .into_iter()
+        .fold(HashMap::new(), |mut map, rom_file| {
+            map.entry(rom_file.start_with).or_default().push(rom_file);
+            map
+        });
+
+    for (start_with, files) in group_by_start_with_normalized {
+        println!("{} - {}", start_with, files.len());
     }
 
     Ok(())
 }
 
-fn read_rom_files_list(options: &Options) -> Vec<PathBuf> {
+struct RomSlice {
+    rom_files: Vec<RomFile>,
+    start_with_normalized: char,
+}
+
+struct RomFile {
+    path: PathBuf,
+    filename: String,
+    start_with: char,
+}
+
+fn read_rom_files_list(options: &Options) -> Vec<RomFile> {
     let mut files = Vec::new();
 
     for entry in fs::read_dir(&options.path).unwrap() {
@@ -26,7 +62,10 @@ fn read_rom_files_list(options: &Options) -> Vec<PathBuf> {
         let extension_match = extension == options.extension;
 
         if path.is_file() && extension_match {
-            files.push(path);
+            let filename = path.file_name().unwrap().to_str().unwrap().to_string();
+            let start_with = filename.chars().next().expect("Filename is empty");
+            let rom_file = RomFile { path, filename, start_with };
+            files.push(rom_file);
         }
     }
 
