@@ -1,55 +1,60 @@
-use std::collections::HashMap;
 use std::fs;
 use std::path::{PathBuf};
 use ap::parser::{Parser, Policy};
 
 /// We get the `path`, `extension`, and `size` of each directory we'll produce.
+/// The `path` indicates the directory of the rom files.
+/// The `extension` indicates which files to process. For example, `nes`.
+/// The `size` is how many files we want per directory.
+///
+/// After reading the `RomFile`s, we split the vector by `size`.
+/// For each slice, we use the first and last chars to build the directory names.
+/// We build each directory with the pattern:
+/// part-{COUNTER}-{CHAR_START_FIRST_FILE}-{CHAR_START_LAST_FILE}
+/// Where `COUNTER` is a two digit string 01, 02, 03 and so on.
+/// `CHAR_START_FIRST_FILE` is the first char of the first file in the slice,
+/// and CHAR_START_LAST_FILE is the first char of the last file in the slice.
+///
 /// TODO: Handle errors
 fn main() -> std::io::Result<()> {
     let env_args = std::env::args().skip(1).collect();
     let options = Options::parse(&env_args);
 
-    let files = read_rom_files_list(&options);
+    let mut files: Vec<RomFile> = read_rom_files_list(&options);
+    files.sort_by(|a, b| a.filename.cmp(&b.filename));
 
-    // We need to calculate the slices which we'll use to make the directories. A slice has
-    // collection of rom files, along with first and last char of the slice. It's possible that
-    // a slice contains a single char. It's ok to go over the max number of files per slice.
-    // That just means the slice is too small.
-    //
-    // Before creating the directories we probably want to normalize the first char of the
-    // filenames to [a-z-A-Z] and any other char we can fold into a special char. That again,
-    // can over the max limit.
-    //
-    // We can first group the rom files per `start_with` and this will give us a count
-    // of how many rom files we have per char. It's ok if we go over the max limit for
-    // a single char.
-    //
-    // TODO: I take going over the max number back. We probably wnat to turn the slice
-    // TODO: into a directory like part-01-A-B, or part-05-S-S, then part-06-S-T
-    // TODO: since, letters like S can have hundreds of titles
-    let group_by_start_with_normalized: HashMap<char, Vec<RomFile>> = files
-        .into_iter()
-        .fold(HashMap::new(), |mut map, rom_file| {
-            map.entry(rom_file.start_with).or_default().push(rom_file);
-            map
-        });
+    let rom_files_slices: Vec<Vec<RomFile>> = files
+        .chunks(options.max_roms_per_directory)
+        .map(|slice| slice.to_vec())
+        .collect();
 
-    for (start_with, files) in group_by_start_with_normalized {
-        println!("{} - {}", start_with, files.len());
-    }
+    // TODO: turn rom_files_slices into rom_slices.
+    let rom_slices: Vec<RomSlice> = todo!();
+
+    // TODO: prepare plan. show target directories and files that will go into each directory.
+    // TODO: if the user presses `y` we'll move the files into the directories.
 
     Ok(())
 }
 
 struct RomSlice {
     rom_files: Vec<RomFile>,
-    start_with_normalized: char,
+    char_ini: char,
+    char_end: char,
 }
 
+impl RomSlice {
+    fn new(rom_files: Vec<RomFile>) -> Self {
+        let char_ini = rom_files.first().unwrap().filename.chars().next().unwrap();
+        let char_end = rom_files.last().unwrap().filename.chars().next().unwrap();
+        RomSlice { rom_files, char_ini, char_end }
+    }
+}
+
+#[derive(Clone)]
 struct RomFile {
     path: PathBuf,
     filename: String,
-    start_with: char,
 }
 
 fn read_rom_files_list(options: &Options) -> Vec<RomFile> {
@@ -63,8 +68,7 @@ fn read_rom_files_list(options: &Options) -> Vec<RomFile> {
 
         if path.is_file() && extension_match {
             let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-            let start_with = filename.chars().next().expect("Filename is empty");
-            let rom_file = RomFile { path, filename, start_with };
+            let rom_file = RomFile { path, filename };
             files.push(rom_file);
         }
     }
