@@ -10,11 +10,13 @@ use ap::parser::{Parser, Policy};
 /// After reading the `RomFile`s, we split the vector by `size`.
 /// For each slice, we use the first and last chars to build the directory names.
 /// We build each directory with the pattern:
-/// part-{COUNTER}-{CHAR_START_FIRST_FILE}-{CHAR_START_LAST_FILE}
+/// part-{COUNTER}-{CHAR_START_FIRST_FILE}-to-{CHAR_START_LAST_FILE}
 /// Where `COUNTER` is a two digit string 01, 02, 03 and so on.
 /// `CHAR_START_FIRST_FILE` is the first char of the first file in the slice,
 /// and CHAR_START_LAST_FILE is the first char of the last file in the slice.
 ///
+/// If `CHAR_START_FIRST_FILE` or `CHAR_START_LAST_FILE` is not in
+/// [A-Za-z-0-9] we replace it with `_`
 /// TODO: Handle errors
 fn main() -> std::io::Result<()> {
     let env_args = std::env::args().skip(1).collect();
@@ -28,11 +30,19 @@ fn main() -> std::io::Result<()> {
         .map(|slice| slice.to_vec())
         .collect();
 
-    // TODO: turn rom_files_slices into rom_slices.
-    let rom_slices: Vec<RomSlice> = todo!();
+    let digits = (rom_files_slices.iter().count() as f64).log10().ceil() as usize;
+
+    let rom_slices: Vec<RomSlice> = rom_files_slices
+        .into_iter()
+        .enumerate()
+        .map(|(i, rom_files)| RomSlice::new(i, digits, rom_files))
+        .collect();
 
     // TODO: prepare plan. show target directories and files that will go into each directory.
     // TODO: if the user presses `y` we'll move the files into the directories.
+    rom_slices.iter().for_each(|slice| {
+       println!("{} {} files", slice.directory_name, slice.rom_files.iter().count());
+    });
 
     Ok(())
 }
@@ -41,13 +51,18 @@ struct RomSlice {
     rom_files: Vec<RomFile>,
     char_ini: char,
     char_end: char,
+    idx: usize,
+    directory_name: String,
 }
 
 impl RomSlice {
-    fn new(rom_files: Vec<RomFile>) -> Self {
+    fn new(idx: usize, digits: usize, rom_files: Vec<RomFile>) -> Self {
         let char_ini = rom_files.first().unwrap().filename.chars().next().unwrap();
+        let char_ini = if char_ini.is_ascii_alphanumeric() { char_ini } else { '_' };
         let char_end = rom_files.last().unwrap().filename.chars().next().unwrap();
-        RomSlice { rom_files, char_ini, char_end }
+        let char_end = if char_end.is_ascii_alphanumeric() { char_end } else { '_' };
+        let directory_name = format!("part-{idx:0width$}-{char_ini}-to-{char_end}", width = digits);
+        RomSlice { rom_files, char_ini, char_end, idx, directory_name }
     }
 }
 
