@@ -1,4 +1,5 @@
-use std::fs;
+use std::{fs, io};
+use std::io::Write;
 use std::path::{PathBuf};
 use ap::parser::{Parser, Policy};
 
@@ -18,7 +19,7 @@ use ap::parser::{Parser, Policy};
 /// If `CHAR_START_FIRST_FILE` or `CHAR_START_LAST_FILE` is not in
 /// [A-Za-z-0-9] we replace it with `_`
 /// TODO: Handle errors
-fn main() -> std::io::Result<()> {
+fn main() -> io::Result<()> {
     let env_args = std::env::args().skip(1).collect();
     let options = Options::parse(&env_args);
 
@@ -38,20 +39,48 @@ fn main() -> std::io::Result<()> {
         .map(|(i, rom_files)| RomSlice::new(i, digits, rom_files))
         .collect();
 
-    // TODO: prepare plan. show target directories and files that will go into each directory.
-    // TODO: if the user presses `y` we'll move the files into the directories.
     rom_slices.iter().for_each(|slice| {
        println!("{} {} files", slice.directory_name, slice.rom_files.iter().count());
     });
+
+    print!("\nProceed to create the directories above and then move the files into the new directories? [Y/n]: ");
+    io::stdout().flush()?;
+
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    let answer = answer.trim().to_lowercase();
+    if answer == "y" || answer == "yes" {
+        create_directories_and_move_files(rom_slices, &options)?;
+    } else {
+        println!("Aborting!");
+    }
+
+
+    Ok(())
+}
+
+fn create_directories_and_move_files(rom_slices: Vec<RomSlice>, options: &Options) -> io::Result<()> {
+    for slice in rom_slices {
+        let path = options.path.join(slice.directory_name);
+        // create directory
+        if let Err(e) = fs::create_dir(path.clone()) {
+            // Ignore directories that already exist
+            if e.kind() != io::ErrorKind::AlreadyExists {
+                return Err(e);
+            }
+        }
+        // move files
+        for rom_file in slice.rom_files {
+            let dest = path.join(rom_file.filename);
+            fs::rename(rom_file.path, dest)?;
+        }
+    }
 
     Ok(())
 }
 
 struct RomSlice {
     rom_files: Vec<RomFile>,
-    char_ini: char,
-    char_end: char,
-    idx: usize,
     directory_name: String,
 }
 
@@ -62,7 +91,7 @@ impl RomSlice {
         let char_end = rom_files.last().unwrap().filename.chars().next().unwrap();
         let char_end = if char_end.is_ascii_alphanumeric() { char_end } else { '_' };
         let directory_name = format!("part-{idx:0width$}-{char_ini}-to-{char_end}", width = digits);
-        RomSlice { rom_files, char_ini, char_end, idx, directory_name }
+        RomSlice { rom_files, directory_name }
     }
 }
 
@@ -91,6 +120,8 @@ fn read_rom_files_list(options: &Options) -> Vec<RomFile> {
     files
 }
 
+/// The `path` is the directory where the rom files resides, and
+/// where the new directories will be created.
 struct Options {
     pub path: PathBuf,
     pub extension: String,
