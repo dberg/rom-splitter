@@ -1,7 +1,16 @@
 use std::{fs, io};
 use std::io::Write;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use ap::parser::{Parser, Policy};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+enum AppError {
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
 
 /// We get the `path`, `extension`, and `size` of each directory we'll produce.
 /// The `path` indicates the directory of the rom files.
@@ -18,12 +27,11 @@ use ap::parser::{Parser, Policy};
 ///
 /// If `CHAR_START_FIRST_FILE` or `CHAR_START_LAST_FILE` is not in
 /// [A-Za-z-0-9] we replace it with `_`
-/// TODO: Handle errors
-fn main() -> io::Result<()> {
+fn main() -> Result<(), AppError> {
     let env_args = std::env::args().skip(1).collect();
-    let options = Options::parse(&env_args);
+    let options = Options::parse(&env_args)?;
 
-    let mut files: Vec<RomFile> = read_rom_files_list(&options);
+    let mut files: Vec<RomFile> = read_rom_files_list(&options)?;
     files.sort_by(|a, b| a.filename.cmp(&b.filename));
 
     let rom_files_slices: Vec<Vec<RomFile>> = files
@@ -59,14 +67,14 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn create_directories_and_move_files(rom_slices: Vec<RomSlice>, options: &Options) -> io::Result<()> {
+fn create_directories_and_move_files(rom_slices: Vec<RomSlice>, options: &Options) -> Result<(), AppError> {
     for slice in rom_slices {
         let path = options.path.join(slice.directory_name);
         // create directory
         if let Err(e) = fs::create_dir(path.clone()) {
             // Ignore directories that already exist
             if e.kind() != io::ErrorKind::AlreadyExists {
-                return Err(e);
+                return Err(AppError::Io(e));
             }
         }
         // move files
@@ -101,23 +109,30 @@ struct RomFile {
     filename: String,
 }
 
-fn read_rom_files_list(options: &Options) -> Vec<RomFile> {
+fn read_rom_files_list(options: &Options) -> Result<Vec<RomFile>, AppError> {
     let mut files = Vec::new();
 
-    for entry in fs::read_dir(&options.path).unwrap() {
-        let entry = entry.unwrap();
+    for entry in fs::read_dir(&options.path)? {
+        let entry = entry?;
         let path = entry.path();
-        let extension = path.extension().unwrap().to_str().unwrap();
-        let extension_match = extension == options.extension;
 
-        if path.is_file() && extension_match {
-            let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-            let rom_file = RomFile { path, filename };
-            files.push(rom_file);
+        let Some(extension) = path.extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+
+        if path.is_file() && extension == options.extension {
+            let filename = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| AppError::InvalidArgument(
+                    format!("invalid filename: {}", path.display())
+                ))?
+                .to_string();
+            files.push(RomFile { path, filename });
         }
     }
 
-    files
+    Ok(files)
 }
 
 /// The `path` is the directory where the rom files resides, and
@@ -129,32 +144,33 @@ struct Options {
 }
 
 impl Options {
-    fn parse(args: &Vec<String>) -> Options {
+    fn parse(args: &Vec<String>) -> Result<Options, AppError> {
         let options = Parser::new()
             .arg("path", 'p', Policy::Default(String::from(".")))
             .arg("extension", 'e', Policy::Required)
             .arg("max-roms-per-directory", 'm', Policy::Default(String::from("100")))
-            .run(args).unwrap();
+            .run(args)
+            .map_err(|e| AppError::InvalidArgument(e.to_string()))?;
 
         let path = options.get("path").unwrap();
-        let path = PathBuf::from(path);
-        let path = path.canonicalize().unwrap();
+        let path = PathBuf::from(path).canonicalize()?;
 
         if !path.is_dir() {
-            eprintln!("Error: '{}' is not a directory", path.display());
-            std::process::exit(1)
+            return Err(AppError::InvalidArgument(
+                format!("'{}' is not a directory", path.display())
+            ));
         }
 
-        let extension = options.get("extension").unwrap();
-        let extension = extension.clone();
+        let extension = options.get("extension").unwrap().clone();
 
-        let max_roms_per_directory = options.get("max-roms-per-directory").unwrap();
-        let max_roms_per_directory = max_roms_per_directory.parse::<usize>().unwrap();
+        let max_roms_per_directory = options
+            .get("max-roms-per-directory")
+            .unwrap()
+            .parse::<usize>()
+            .map_err(|_| AppError::InvalidArgument(
+                String::from("max-roms-per-directory must be a positive integer")
+            ))?;
 
-        Options {
-            path,
-            extension,
-            max_roms_per_directory
-        }
+        Ok(Options { path, extension, max_roms_per_directory })
     }
 }

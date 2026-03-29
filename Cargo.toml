@@ -10,6 +10,7 @@ repository = "https://github.com/dberg/rom-splitter"
 
 [dependencies]
 ap = { git = "https://github.com/dberg/ap.git" }
+thiserror = "2"
 
 # The profile that 'dist' will build with
 [profile.dist]
