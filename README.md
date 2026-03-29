@@ -24,13 +24,13 @@ cd ~/roms/snes && rom-splitter -e sfc
 ### macOS/Linux
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dberg/rom-splitter/releases/download/v0.1.0/rom-splitter-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dberg/rom-splitter/releases/latest/download/rom-splitter-installer.sh | sh
 ```
 
 ### Windows (PowerShell)
 
 ```
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/dberg/rom-splitter/releases/download/v0.1.0/rom-splitter-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/dberg/rom-splitter/releases/latest/download/rom-splitter-installer.ps1 | iex"
 ```
 
 ## Dev
