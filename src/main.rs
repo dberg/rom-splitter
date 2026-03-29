@@ -28,7 +28,13 @@ enum AppError {
 /// If `CHAR_START_FIRST_FILE` or `CHAR_START_LAST_FILE` is not in
 /// [A-Za-z-0-9] we replace it with `_`
 fn main() -> Result<(), AppError> {
-    let env_args = std::env::args().skip(1).collect();
+    let env_args: Vec<String> = std::env::args().skip(1).collect();
+
+    if env_args.iter().any(|a| a == "--version" || a == "-v") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     let options = Options::parse(&env_args)?;
 
     let mut files: Vec<RomFile> = read_rom_files_list(&options)?;
