@@ -1,6 +1,10 @@
 # Roms file splitter
 
-Some retro gaming devices (e.g. Analogue Pocket, NES Everdrive) have a limit on how many files they can display per directory. `rom-splitter` solves this by taking a flat directory of ROM files and organizing them into subdirectories of a configurable size, sorted alphabetically. Each subdirectory is named by its position and the range of filenames it contains, e.g. `part-01-A-to-M`.
+Some retro gaming devices (e.g. Analogue Pocket, NES Everdrive) have a limit on
+how many files they can display per directory. `rom-splitter` solves this by
+taking a flat directory of ROM files and organizing them into subdirectories of
+a configurable size, sorted alphabetically. Each subdirectory is named by its
+position and the range of filenames it contains, e.g. `part-01-A-to-M`.
 
 ## Running
 
@@ -39,4 +43,17 @@ Running
 
 ```bash
 cargo run -- -p PATH_TO_ROMS_DIR -e nes -m 100
+```
+
+Releasing a new version
+
+```bash
+git tag v0.0.0
+git push --tags
+```
+
+Listing the tags
+
+```bash
+git tag --list | sort -V
 ```
