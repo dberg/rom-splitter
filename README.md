@@ -47,13 +47,10 @@ cargo run -- -p PATH_TO_ROMS_DIR -e nes -m 100
 
 Releasing a new version
 
+1. Update version in Cargo.toml and push the changes. For example, 1.2.3.
+2. Add git tag of the new version. For example, v1.2.3 below
+
 ```bash
-git tag v0.0.0
+git tag v1.2.3
 git push --tags
-```
-
-Listing the tags
-
-```bash
-git tag --list | sort -V
 ```
