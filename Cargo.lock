@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "ap"
 version = "0.1.0"
-source = "git+https://github.com/dberg/ap.git#f031ea08b337d53ea7609eb4824f4733d7ba0c90"
+source = "git+https://github.com/dberg/ap.git#7ba414e1720d9dbe6bd42904f31b55a0baea0f28"
 
 [[package]]
 name = "proc-macro2"
@@ -27,7 +27,7 @@ dependencies = [
 
 [[package]]
 name = "rom-splitter"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ap",
  "thiserror",

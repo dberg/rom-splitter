@@ -1,16 +1,11 @@
+mod app_error;
+mod options;
+
 use std::{fs, io};
 use std::io::Write;
 use std::path::PathBuf;
-use ap::parser::{Parser, Policy};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-enum AppError {
-    #[error("IO error: {0}")]
-    Io(#[from] io::Error),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-}
+use app_error::AppError;
+use options::Options;
 
 /// We get the `path`, `extension`, and `size` of each directory we'll produce.
 /// The `path` indicates the directory of the rom files.
@@ -30,12 +25,12 @@ enum AppError {
 fn main() -> Result<(), AppError> {
     let env_args: Vec<String> = std::env::args().skip(1).collect();
 
-    if env_args.iter().any(|a| a == "--version" || a == "-v") {
+    let options = Options::parse(&env_args)?;
+
+    if options.version {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
-
-    let options = Options::parse(&env_args)?;
 
     let mut files: Vec<RomFile> = read_rom_files_list(&options)?;
     files.sort_by(|a, b| a.filename.cmp(&b.filename));
@@ -68,7 +63,6 @@ fn main() -> Result<(), AppError> {
     } else {
         println!("Aborting!");
     }
-
 
     Ok(())
 }
@@ -139,44 +133,4 @@ fn read_rom_files_list(options: &Options) -> Result<Vec<RomFile>, AppError> {
     }
 
     Ok(files)
-}
-
-/// The `path` is the directory where the rom files resides, and
-/// where the new directories will be created.
-struct Options {
-    pub path: PathBuf,
-    pub extension: String,
-    pub max_roms_per_directory: usize,
-}
-
-impl Options {
-    fn parse(args: &Vec<String>) -> Result<Options, AppError> {
-        let options = Parser::new()
-            .arg("path", 'p', Policy::Default(String::from(".")))
-            .arg("extension", 'e', Policy::Required)
-            .arg("max-roms-per-directory", 'm', Policy::Default(String::from("100")))
-            .run(args)
-            .map_err(|e| AppError::InvalidArgument(e.to_string()))?;
-
-        let path = options.get("path").unwrap();
-        let path = PathBuf::from(path).canonicalize()?;
-
-        if !path.is_dir() {
-            return Err(AppError::InvalidArgument(
-                format!("'{}' is not a directory", path.display())
-            ));
-        }
-
-        let extension = options.get("extension").unwrap().clone();
-
-        let max_roms_per_directory = options
-            .get("max-roms-per-directory")
-            .unwrap()
-            .parse::<usize>()
-            .map_err(|_| AppError::InvalidArgument(
-                String::from("max-roms-per-directory must be a positive integer")
-            ))?;
-
-        Ok(Options { path, extension, max_roms_per_directory })
-    }
 }
